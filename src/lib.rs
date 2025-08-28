@@ -170,6 +170,10 @@ impl Amm for PlasmaAmm {
         })
     }
 
+    fn get_accounts_len(&self) -> usize {
+        9
+    }
+
     fn clone_amm(&self) -> Box<dyn Amm + Send + Sync> {
         Box::new(self.clone())
     }

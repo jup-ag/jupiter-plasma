@@ -88,6 +88,7 @@ impl Amm for PlasmaAmm {
             input_mint,
             output_mint: _output_mint,
             swap_mode: _swap_mode,
+            ..
         } = quote_params;
 
         let is_quote_to_base = input_mint == &self.plasma_amm.header.quote_params.mint_key;

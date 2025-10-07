@@ -1,13 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
-use solana_program::{
-    declare_id,
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    system_program,
-};
+use solana_instruction::{AccountMeta, Instruction};
+use solana_pubkey::Pubkey;
 
-declare_id!("srAMMzfVHVAtgSJc8iH6CfKzuWuUTzLHVCE81QU1rgi");
+pub const ID: Pubkey = Pubkey::from_str_const("srAMMzfVHVAtgSJc8iH6CfKzuWuUTzLHVCE81QU1rgi");
 
 const SWAP_DISCRIMINATOR: u8 = 0;
 const ADD_LIQUIDITY_DISCRIMINATOR: u8 = 1;
@@ -81,8 +77,8 @@ pub fn initialize_pool(
             AccountMeta::new_readonly(*quote_mint, false),
             AccountMeta::new(base_vault, false),
             AccountMeta::new(quote_vault, false),
-            AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(Pubkey::default(), false),
+            AccountMeta::new_readonly(spl_token_interface::ID, false),
         ],
         data: [
             vec![INITIALIZE_POOL_DISCRIMINATOR],
@@ -108,7 +104,7 @@ pub fn initialize_lp_position(
             AccountMeta::new(*payer, true),
             AccountMeta::new_readonly(*lp_position_owner, false),
             AccountMeta::new(lp_position_key, false),
-            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(Pubkey::default(), false),
         ],
         data: vec![INITIALIZE_LP_POSITION_DISCRIMINATOR],
     }
@@ -149,7 +145,7 @@ pub fn add_liquidity(
             AccountMeta::new(*quote_mint_account_key, false),
             AccountMeta::new(base_vault_key, false),
             AccountMeta::new(quote_vault_key, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_interface::ID, false),
         ],
         data: [
             vec![ADD_LIQUIDITY_DISCRIMINATOR],
@@ -204,7 +200,7 @@ pub fn remove_liquidity(
             AccountMeta::new(*quote_account_key, false),
             AccountMeta::new(base_vault_key, false),
             AccountMeta::new(quote_vault_key, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_interface::ID, false),
         ],
         data: [
             vec![REMOVE_LIQUIDITY_DISCRIMINATOR],
@@ -268,7 +264,7 @@ pub fn swap(
             AccountMeta::new(*quote_account_key, false),
             AccountMeta::new(base_vault_key, false),
             AccountMeta::new(quote_vault_key, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_interface::ID, false),
         ],
         data: [vec![SWAP_DISCRIMINATOR], params.try_to_vec().unwrap()].concat(),
     }

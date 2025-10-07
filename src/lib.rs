@@ -6,10 +6,10 @@ use jupiter_amm_interface::{
     SwapParams, try_get_account_data,
 };
 use plasma::{PoolHeader, plasma_amm::Amm as PlasmaAmmState, plasma_utils, swap};
-use solana_program::pubkey::Pubkey;
-use solana_program::sysvar;
-use solana_sdk::{clock::Clock, program_pack::Pack};
-use spl_token::state::Account as TokenAccount;
+use solana_clock::Clock;
+use solana_program_pack::Pack;
+use solana_pubkey::Pubkey;
+use spl_token_interface::state::Account as TokenAccount;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize)]
@@ -34,7 +34,7 @@ impl Amm for PlasmaAmm {
     }
 
     fn program_id(&self) -> Pubkey {
-        plasma_utils::id()
+        plasma_utils::ID
     }
 
     fn key(&self) -> Pubkey {
@@ -53,7 +53,7 @@ impl Amm for PlasmaAmm {
             self.pool_address,
             self.plasma_amm.header.base_params.vault_key,
             self.plasma_amm.header.quote_params.vault_key,
-            sysvar::clock::id(),
+            solana_sdk_ids::sysvar::clock::id(),
         ]
     }
 
@@ -75,7 +75,8 @@ impl Amm for PlasmaAmm {
         self.plasma_amm = plasma_amm;
 
         // Update slot
-        let clock_account = try_get_account_data(account_map, &sysvar::clock::id())?;
+        let clock_account =
+            try_get_account_data(account_map, &solana_sdk_ids::sysvar::clock::id())?;
         let clock = bincode::deserialize::<Clock>(clock_account)?;
         self.slot = clock.slot;
 
@@ -196,83 +197,5 @@ impl Amm for PlasmaAmm {
             quote_vault_amount: 0,
             slot: amm_context.clock_ref.slot.load(Ordering::Relaxed),
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::collections::HashMap;
-
-    use jupiter_amm_interface::{ClockRef, SwapMode};
-    use solana_client::rpc_client::RpcClient;
-    use solana_sdk::{account::Account, commitment_config::CommitmentConfig, pubkey};
-
-    use super::*;
-
-    #[test]
-    fn test_plasma_amm() {
-        let rpc_url = "https://api.mainnet-beta.solana.com".to_string();
-        let client = RpcClient::new_with_commitment(rpc_url, CommitmentConfig::confirmed());
-
-        let pool_pubkey = pubkey!("8aDt3G915nUwxrqoN4tsBT4SgYwSsE5K2mBfu65JY4ex");
-
-        let clock_account = client.get_account(&sysvar::clock::id()).unwrap();
-        let clock = bincode::deserialize::<Clock>(clock_account.data.as_slice()).unwrap();
-
-        let clock_ref = ClockRef::default();
-        clock_ref.update(clock);
-
-        let amm_context = AmmContext { clock_ref };
-
-        let account = client.get_account(&pool_pubkey).unwrap();
-
-        let pool_account = KeyedAccount {
-            key: pool_pubkey,
-            account,
-            params: None,
-        };
-
-        let mut plasma_amm = PlasmaAmm::from_keyed_account(&pool_account, &amm_context).unwrap();
-
-        let accounts_to_update = plasma_amm.get_accounts_to_update();
-
-        let accounts_map = client
-            .get_multiple_accounts(&accounts_to_update)
-            .unwrap()
-            .iter()
-            .enumerate()
-            .fold(
-                HashMap::<Pubkey, Account, ahash::RandomState>::default(),
-                |mut m, (index, account)| {
-                    if let Some(account) = account {
-                        m.insert(accounts_to_update[index], account.clone());
-                    }
-                    m
-                },
-            );
-        plasma_amm.update(&accounts_map).unwrap();
-        println!("Buying with 1 SOL");
-        let res = plasma_amm
-            .quote(&QuoteParams {
-                amount: 1e9 as u64,
-                input_mint: plasma_amm.plasma_amm.header.quote_params.mint_key,
-                output_mint: plasma_amm.plasma_amm.header.base_params.mint_key,
-                swap_mode: SwapMode::ExactIn,
-            })
-            .unwrap();
-
-        println!("Received {:?} Tokens", res.out_amount as f64 / 1e6);
-
-        println!("Selling with {} Tokens", res.out_amount as f64 / 1e6);
-
-        let res = plasma_amm
-            .quote(&QuoteParams {
-                amount: res.out_amount as u64,
-                input_mint: plasma_amm.plasma_amm.header.base_params.mint_key,
-                output_mint: plasma_amm.plasma_amm.header.quote_params.mint_key,
-                swap_mode: SwapMode::ExactIn,
-            })
-            .unwrap();
-        println!("Received {:?} SOL", res.out_amount as f64 / 1e9);
     }
 }

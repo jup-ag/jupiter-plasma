@@ -10,6 +10,7 @@ type FixedI80F48 = fixed::types::I80F48;
 
 #[derive(Clone, Copy, Zeroable, Pod, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct I80F48 {
     inner: i128,
 }

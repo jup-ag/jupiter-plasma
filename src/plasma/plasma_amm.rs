@@ -8,6 +8,7 @@ pub const BPS_BASE: u128 = 10000;
 use super::SlotWindow;
 
 #[derive(Debug, Clone, Copy, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub struct SwapResult {
     pub side: Side,
     pub base_amount_to_transfer: u64,
@@ -35,6 +36,7 @@ impl SwapResult {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub enum Side {
     Buy,
     Sell,
@@ -48,6 +50,7 @@ pub enum TokenType {
 
 #[derive(Debug, Copy, Clone, Zeroable, Pod, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct Amm {
     pub fee_in_bps: u32,
     protocol_allocation_in_pct: u32,

@@ -1,11 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{Pod, Zeroable};
-use solana_program::{
-    declare_id,
-    instruction::{AccountMeta, Instruction},
-    pubkey::Pubkey,
-    system_program,
-};
+use solana_instruction::{AccountMeta, Instruction};
+use solana_pubkey::{Pubkey, declare_id};
+use solana_sdk_ids::system_program;
 
 declare_id!("srAMMzfVHVAtgSJc8iH6CfKzuWuUTzLHVCE81QU1rgi");
 
@@ -21,6 +18,7 @@ pub const POOL_DISCRIMINATOR: [u8; 8] = [116, 210, 187, 119, 196, 196, 52, 137];
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub struct InitializePoolParams {
     pub lp_fee_in_bps: u64,
     pub protocol_fee_allocation_in_pct: u64,
@@ -32,6 +30,7 @@ pub struct InitializePoolParams {
 
 #[derive(Debug, Default, Copy, Clone, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct ProtocolFeeRecipientParams {
     pub recipient: Pubkey,
     pub shares: u64,
@@ -59,6 +58,10 @@ pub fn get_log_authority(plasma_program_id: &Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[b"log"], plasma_program_id).0
 }
 
+fn spl_token_program_id() -> Pubkey {
+    Pubkey::new_from_array(spl_token_interface::ID.to_bytes())
+}
+
 pub fn initialize_pool(
     pool_key: &Pubkey,
     pool_creator: &Pubkey,
@@ -82,11 +85,11 @@ pub fn initialize_pool(
             AccountMeta::new(base_vault, false),
             AccountMeta::new(quote_vault, false),
             AccountMeta::new_readonly(system_program::ID, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_program_id(), false),
         ],
         data: [
             vec![INITIALIZE_POOL_DISCRIMINATOR],
-            params.try_to_vec().unwrap(),
+            borsh::to_vec(&params).unwrap(),
         ]
         .concat(),
     }
@@ -116,6 +119,7 @@ pub fn initialize_lp_position(
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub struct AddLiquidityParams {
     pub desired_base_amount_in: u64,
     pub desired_quote_amount_in: u64,
@@ -149,11 +153,11 @@ pub fn add_liquidity(
             AccountMeta::new(*quote_mint_account_key, false),
             AccountMeta::new(base_vault_key, false),
             AccountMeta::new(quote_vault_key, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_program_id(), false),
         ],
         data: [
             vec![ADD_LIQUIDITY_DISCRIMINATOR],
-            params.try_to_vec().unwrap(),
+            borsh::to_vec(&params).unwrap(),
         ]
         .concat(),
     }
@@ -204,11 +208,11 @@ pub fn remove_liquidity(
             AccountMeta::new(*quote_account_key, false),
             AccountMeta::new(base_vault_key, false),
             AccountMeta::new(quote_vault_key, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_program_id(), false),
         ],
         data: [
             vec![REMOVE_LIQUIDITY_DISCRIMINATOR],
-            shares.try_to_vec().unwrap(),
+            borsh::to_vec(&shares).unwrap(),
         ]
         .concat(),
     }
@@ -216,6 +220,7 @@ pub fn remove_liquidity(
 
 #[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct LpPosition {
     reward_factor_snapshot: i128,
     pub lp_shares: u64,
@@ -226,6 +231,7 @@ pub struct LpPosition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub enum Side {
     Buy,
     Sell,
@@ -233,12 +239,14 @@ pub enum Side {
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub struct SwapParams {
     pub side: Side,
     pub swap_type: SwapType,
 }
 
 #[derive(Clone, Copy, Debug, BorshDeserialize, BorshSerialize)]
+#[borsh(crate = "borsh")]
 pub enum SwapType {
     ExactIn { amount_in: u64, min_amount_out: u64 },
     ExactOut { amount_out: u64, max_amount_in: u64 },
@@ -268,14 +276,15 @@ pub fn swap(
             AccountMeta::new(*quote_account_key, false),
             AccountMeta::new(base_vault_key, false),
             AccountMeta::new(quote_vault_key, false),
-            AccountMeta::new_readonly(spl_token::ID, false),
+            AccountMeta::new_readonly(spl_token_program_id(), false),
         ],
-        data: [vec![SWAP_DISCRIMINATOR], params.try_to_vec().unwrap()].concat(),
+        data: [vec![SWAP_DISCRIMINATOR], borsh::to_vec(&params).unwrap()].concat(),
     }
 }
 
 #[derive(Debug, Copy, Clone, Zeroable, Pod, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct PoolHeader {
     pub discriminator: [u8; 8],
     pub sequence_number: u64,
@@ -288,6 +297,7 @@ pub struct PoolHeader {
 
 #[derive(Debug, Copy, Clone, Zeroable, Pod, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct TokenParams {
     /// Number of decimals for the token (e.g. 9 for SOL, 6 for USDC).
     pub decimals: u32,
@@ -304,6 +314,7 @@ pub struct TokenParams {
 
 #[derive(Debug, Default, Copy, Clone, Zeroable, Pod, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct ProtocolFeeRecipient {
     pub recipient: Pubkey,
     pub shares: u64,
@@ -313,6 +324,7 @@ pub struct ProtocolFeeRecipient {
 
 #[derive(Debug, Default, Copy, Clone, Zeroable, Pod, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct ProtocolFeeRecipients {
     pub recipients: [ProtocolFeeRecipient; 3],
     _padding: [u64; 12],

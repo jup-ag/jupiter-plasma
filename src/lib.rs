@@ -6,14 +6,14 @@ use jupiter_amm_interface::{
     SwapParams, try_get_account_data,
 };
 use plasma::{PoolHeader, plasma_amm::Amm as PlasmaAmmState, plasma_utils, swap};
-use solana_program::pubkey::Pubkey;
-use solana_program::sysvar;
-use solana_sdk::{clock::Clock, program_pack::Pack};
-use spl_token::state::Account as TokenAccount;
+use solana_clock::Clock;
+use solana_pubkey::Pubkey;
+use solana_sdk_ids::sysvar;
 use std::sync::atomic::Ordering;
 
 #[derive(Debug, Copy, Clone, BorshDeserialize, BorshSerialize)]
 #[repr(C)]
+#[borsh(crate = "borsh")]
 pub struct PoolAccount {
     pub header: PoolHeader,
     pub amm: PlasmaAmmState,
@@ -60,14 +60,14 @@ impl Amm for PlasmaAmm {
     fn update(&mut self, account_map: &AccountMap) -> anyhow::Result<()> {
         let base_vault_account =
             try_get_account_data(account_map, &self.plasma_amm.header.base_params.vault_key)?;
-        let base_vault_token_account = TokenAccount::unpack(base_vault_account)?;
+        let base_vault_amount = token_amount(base_vault_account)?;
 
         let quote_vault_account =
             try_get_account_data(account_map, &self.plasma_amm.header.quote_params.vault_key)?;
-        let quote_vault_token_account = TokenAccount::unpack(quote_vault_account)?;
+        let quote_vault_amount = token_amount(quote_vault_account)?;
 
-        self.base_vault_amount = base_vault_token_account.amount;
-        self.quote_vault_amount = quote_vault_token_account.amount;
+        self.base_vault_amount = base_vault_amount;
+        self.quote_vault_amount = quote_vault_amount;
 
         // Update market account
         let plasma_amm_data = try_get_account_data(account_map, &self.pool_address)?;
@@ -199,13 +199,30 @@ impl Amm for PlasmaAmm {
     }
 }
 
+fn token_amount(data: &[u8]) -> anyhow::Result<u64> {
+    const TOKEN_ACCOUNT_LEN: usize = 165;
+    const AMOUNT_OFFSET: usize = 64;
+    const AMOUNT_END: usize = AMOUNT_OFFSET + 8;
+
+    if data.len() < TOKEN_ACCOUNT_LEN {
+        anyhow::bail!("invalid token account length: {}", data.len());
+    }
+
+    let bytes: [u8; 8] = data[AMOUNT_OFFSET..AMOUNT_END]
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("invalid token amount bytes"))?;
+    Ok(u64::from_le_bytes(bytes))
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use jupiter_amm_interface::{ClockRef, SwapMode};
+    use solana_account::Account;
     use solana_client::rpc_client::RpcClient;
-    use solana_sdk::{account::Account, commitment_config::CommitmentConfig, pubkey};
+    use solana_commitment_config::CommitmentConfig;
+    use solana_pubkey::pubkey;
 
     use super::*;
 
@@ -258,6 +275,7 @@ mod tests {
                 input_mint: plasma_amm.plasma_amm.header.quote_params.mint_key,
                 output_mint: plasma_amm.plasma_amm.header.base_params.mint_key,
                 swap_mode: SwapMode::ExactIn,
+                fee_mode: jupiter_amm_interface::FeeMode::Normal,
             })
             .unwrap();
 
@@ -271,6 +289,7 @@ mod tests {
                 input_mint: plasma_amm.plasma_amm.header.base_params.mint_key,
                 output_mint: plasma_amm.plasma_amm.header.quote_params.mint_key,
                 swap_mode: SwapMode::ExactIn,
+                fee_mode: jupiter_amm_interface::FeeMode::Normal,
             })
             .unwrap();
         println!("Received {:?} SOL", res.out_amount as f64 / 1e9);
